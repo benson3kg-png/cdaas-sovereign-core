@@ -1,84 +1,60 @@
-/**
- * ============================================================================
- *         AVENUE B: OMNIMESH CDaaS BARE-METAL MEMORY COMPACTOR CORE
- * ============================================================================
- * ARCHITECTURE : Shared-Nothing Zero-Dependency HTTP Input Proxy Channel
- * LOGIC MATRIX : Dynamic In-Memory Variable Flattening (500-Byte Law)
- * SECURITY     : Automatic Evacuation Chute Purges (Zero Persistent Storage)
- * ============================================================================
- */
-
 const http = require('http');
 const crypto = require('crypto');
 
-const ENGINE_CONFIG = {
+const CONFIG = {
     PORT: 4000,
-    INGRESS_PATH: "/api/v1/cdaas/deescalate",
-    PURGE_INTERVAL_MS: 1800000 // Force clear and erase RAM maps every 30 minutes
+    PATH: "/api/v1/cdaas/deescalate",
+    TTL_MS: 1800000 
 };
 
-const volatileCacheEnclave = new Map();
+const cache = new Map();
 
-function compressCravationVector(nodeId) {
-    const rawFrame = {
-        session_hash: crypto.randomBytes(8).toString('hex'),
-        subject_node: nodeId,
-        vector_charge: "DE_ESCALATED_MICRO_WATT",
-        homeostatic_invariant: "ZERO_IMPEDANCE_REST_STATE",
-        timestamp: Date.now()
-    };
-    return Buffer.from(JSON.stringify(rawFrame)).toString('base64');
+function pack(nodeId) {
+    return Buffer.from(JSON.stringify({
+        hash: crypto.randomBytes(8).toString('hex'),
+        sub: nodeId,
+        status: "LOCKED",
+        ts: Date.now()
+    })).toString('base64');
 }
 
-const cdaasServer = http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
     res.setHeader('Content-Type', 'application/json');
-    const endpointContext = new URL(req.url, `http://${req.headers.host}`);
+    const u = new URL(req.url, `http://${req.headers.host}`);
 
-    if (req.method === 'POST' && endpointContext.pathname === ENGINE_CONFIG.INGRESS_PATH) {
-        let streamAccumulator = '';
-        req.on('data', bitChunk => { streamAccumulator += bitChunk; });
+    if (req.method === 'POST' && u.pathname === CONFIG.PATH) {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
         req.on('end', () => {
             try {
-                const incomingPacket = JSON.parse(streamAccumulator);
-                const clientNodeId = incomingPacket?.user_id;
-                const coreSensationPayload = incomingPacket?.sensation_input?.trim();
+                const payload = JSON.parse(body);
+                const client = payload?.user_id;
+                const input = payload?.sensation_input?.trim();
 
-                if (!clientNodeId || !coreSensationPayload) {
+                if (!client || !input) {
                     res.writeHead(400);
-                    return res.end(JSON.stringify({ error: "MALFORMED_INGRESS_DATA_FRAME" }));
+                    return res.end(JSON.stringify({ error: "BAD_FRAME" }));
                 }
 
-                const compressedLogicalFrame = compressCravationVector(clientNodeId);
-                
-                // Committing variables to isolated memory slots away from local database logs
-                volatileCacheEnclave.set(clientNodeId, {
-                    lifecycle_status: "SYSTEMIC_EQUILIBRIUM_RESTORED",
-                    payload_seal: compressedLogicalFrame
+                cache.set(client, {
+                    status: "OK",
+                    seal: pack(client)
                 });
 
                 res.writeHead(200);
-                res.end(JSON.stringify({
-                    status: "SUCCESS_COMPRESSED_AND_BALANCED",
-                    metrics: { network_resistance: "0", data_load: "500B", state: "SUPERCONDUCTOR" }
-                }));
-
-                streamAccumulator = null;
-            } catch (compilerFault) {
+                res.end(JSON.stringify({ status: "PROCESSED" }));
+                body = null;
+            } catch (err) {
                 res.writeHead(500);
-                return res.end(JSON.stringify({ error: "COMPILER_EXCEPTION_INTERCEPTED" }));
+                res.end(JSON.stringify({ error: "ERR_CORE" }));
             }
         });
     } else {
         res.writeHead(404);
-        res.end(JSON.stringify({ error: "ROUTE_NOT_FOUND_ON_CORE_GRID" }));
+        res.end(JSON.stringify({ error: "NOT_FOUND" }));
     }
 });
 
-// THE AUTOMATED MEMORY EVACUATION CHUTE
-// Wipes out residual session trails completely, keeping the physical processor cool
-setInterval(() => {
-    volatileCacheEnclave.clear();
-    process.stdout.write(`🛡️ [ZERO-TRUST PURGE]: Volatile memory enclaves successfully evacuated. Residual footprints = 0B.\n`);
-}, ENGINE_CONFIG.PURGE_INTERVAL_MS);
+setInterval(() => { cache.clear(); }, CONFIG.TTL_MS);
 
-cdaasServer.listen(ENGINE_CONFIG.PORT, '::');
+server.listen(CONFIG.PORT, '::');
