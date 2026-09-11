@@ -1,22 +1,11 @@
-﻿/**
- * ============================================================================
- *         AVENUE B: COGNITIVE DE-ESCALATION INTERACTIVE CLIENT TERMINAL
- * ============================================================================
- * ARCHITECTURE : Event-Driven Readline Ingress / Egress Controller
- * PIPELINE     : Native Node.js HTTP Streaming Client (Zero Abstraction Overhead)
- * LOGIC MATRIX : Sequential Human Language Compression Framework
- * TARGET PORT  : Port 4000 (Local Connection Ingress Server)
- * ============================================================================
- */
-
 const http = require('http');
 const readline = require('readline');
 
-const CLIENT_CONFIG = {
-    SERVER_HOST: 'localhost',
-    SERVER_PORT: 4000,
-    SERVER_PATH: '/api/v1/cdaas/deescalate',
-    USER_IDENTITY: '233241112222' 
+const CONFIG = {
+    HOST: 'localhost',
+    PORT: 4000,
+    PATH: '/api/v1/cdaas/deescalate',
+    ID: '233241112222'
 };
 
 const rl = readline.createInterface({
@@ -24,79 +13,62 @@ const rl = readline.createInterface({
     output: process.stdout
 });
 
-function transmitToCompactorCore(rawSensation) {
-    const payloadBuffer = JSON.stringify({
-        user_id: CLIENT_CONFIG.USER_IDENTITY,
-        sensation_input: rawSensation
+function send(inputData) {
+    const payload = JSON.stringify({
+        user_id: CONFIG.ID,
+        sensation_input: inputData
     });
 
-    const outboundRequest = http.request({
-        hostname: CLIENT_CONFIG.SERVER_HOST,
-        port: CLIENT_CONFIG.SERVER_PORT,
-        path: CLIENT_CONFIG.SERVER_PATH,
+    const req = http.request({
+        hostname: CONFIG.HOST,
+        port: CONFIG.PORT,
+        path: CONFIG.PATH,
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(payloadBuffer)
+            'Content-Length': Buffer.byteLength(payload)
         }
-    }, (response) => {
-        let serverFeedbackStream = '';
-        response.on('data', chunk => { serverFeedbackStream += chunk; });
-        response.on('end', () => {
+    }, (res) => {
+        let body = '';
+        res.on('data', chunk => { body += chunk; });
+        res.on('end', () => {
             try {
-                const parseResponse = JSON.parse(serverFeedbackStream);
-                
-                process.stdout.write("\n============================================================\n");
-                process.stdout.write("🛡️  [COMPACTION MATRIX CONFIRMATION]\n");
-                process.stdout.write("============================================================\n");
-                process.stdout.write(`STATUS       : ${parseResponse.status}\n`);
-                process.stdout.write("============================================================\n");
-                process.stdout.write("⚡ Root folder flattened to microwatts. System equilibrium restored.\n\n");
-                
-                initializeCognitiveIngressLoop();
+                const out = JSON.parse(body);
+                process.stdout.write(`\n--- RESULT ---\nStatus: ${out.status}\n--------------\n\n`);
+                loop();
             } catch (err) {
-                process.stderr.write("❌ [ENCLAVE SYNTAX EXCEPTION]: Failed to parse backend feedback.\n");
-                initializeCognitiveIngressLoop();
+                process.stderr.write(`[ERR] Parse error: ${err.message}\n`);
+                loop();
             }
         });
     });
 
-    outboundRequest.on('error', (netErr) => {
-        process.stderr.write(`❌ [PERIMETER DISRUPTION]: Line disconnected: ${netErr.message}\n`);
-        initializeCognitiveIngressLoop();
+    req.on('error', (err) => {
+        process.stderr.write(`[CONN] Network failure: ${err.message}\n`);
+        loop();
     });
 
-    outboundRequest.write(payloadBuffer);
-    outboundRequest.end();
+    req.write(payload);
+    req.end();
 }
 
-function initializeCognitiveIngressLoop() {
-    process.stdout.write("------------------------------------------------------------\n");
-    process.stdout.write("👁️  OMNIMESH CDaaS: INPUT ACTIVE CRAVING OR STRESS VECTOR LOG\n");
-    process.stdout.write("------------------------------------------------------------\n");
-    
-    rl.question("👉 Describe the raw feeling (or type 'EXIT' to drop ports): ", (userInput) => {
-        const cleanInput = userInput.trim();
+function loop() {
+    rl.question("Input: ", (userInput) => {
+        const cmd = userInput.trim();
 
-        if (cleanInput.toUpperCase() === 'EXIT') {
-            process.stdout.write("⚡ Severing client terminal connection strings. Ingress gates closed.\n");
+        if (cmd.toUpperCase() === 'EXIT') {
             rl.close();
             process.exit(0);
         }
 
-        if (!cleanInput) {
-            process.stdout.write("⚠️  [INGRESS REFUSAL]: Payload context missing. Re-input variable.\n\n");
-            return initializeCognitiveIngressLoop();
+        if (!cmd) {
+            process.stdout.write(`[WARN] Empty input\n\n`);
+            return loop();
         }
 
-        process.stdout.write("\n🔄 [PROCESSING]: Executing Variable Compactor Logic...\n");
-        process.stdout.write("🔄 [PROCESSING]: Stripping behavioral sub-folders and presentation noise...\n");
-        
-        transmitToCompactorCore(cleanInput);
+        send(cmd);
     });
 }
 
-process.stdout.write("\n============================================================\n");
-process.stdout.write("🧠 COGNITIVE DE-ESCALATION AS A SERVICE: RUNTIME NODE INITIALIZED\n");
-process.stdout.write("============================================================\n");
-initializeCognitiveIngressLoop();
+process.stdout.write("Terminal Client Online\n");
+loop();
